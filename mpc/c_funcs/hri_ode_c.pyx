@@ -40,7 +40,7 @@ cdef struct Parameters:
 # Create an instance of the Parameters struct
 cdef Parameters params
 
-def func(Parameters params, double q1, double dq1, double h_q2, double r_d2, double r_d3, double r_q4, r_q5, double h_dq2, double r_dd2, double r_dd3, double r_dq4, double r_dq5, double tau1, double tau2, double tau3, double tau4):
+def func(Parameters params, double q1, double dq1, double h_q2, double h_dq2, double r_d2, double r_dd2, double r_d3, double r_dd3, double r_q4, double r_dq4, double r_q5, double r_dq5, double tau1, double tau2, double tau3, double tau4):
 
     m1 = params.m1
     m2 = params.m2
@@ -123,4 +123,4 @@ def func(Parameters params, double q1, double dq1, double h_q2, double r_d2, dou
     r_ddq4 = (b1*c2*d3*e5 - b1*c2*d5*e3 - b1*c3*d2*e5 + b1*c3*d5*e2 + b1*c5*d2*e3 - b1*c5*d3*e2 - b2*c1*d3*e5 + b2*c1*d5*e3 + b2*c3*d1*e5 - b2*c3*d5*e1 - b2*c5*d1*e3 + b2*c5*d3*e1 + b3*c1*d2*e5 - b3*c1*d5*e2 - b3*c2*d1*e5 + b3*c2*d5*e1 + b3*c5*d1*e2 - b3*c5*d2*e1 - b5*c1*d2*e3 + b5*c1*d3*e2 + b5*c2*d1*e3 - b5*c2*d3*e1 - b5*c3*d1*e2 + b5*c3*d2*e1 + b2*d3*e5*tau4 - b2*d5*e3*tau4 - b3*d2*e5*tau4 + b3*d5*e2*tau4 + b5*d2*e3*tau4 - b5*d3*e2*tau4)/(b2*c3*d5*e4 + b2*c4*d3*e5 - b2*c4*d5*e3 - b2*c5*d3*e4 - b3*c2*d5*e4 - b3*c4*d2*e5 + b3*c4*d5*e2 + b3*c5*d2*e4 - b4*c2*d3*e5 + b4*c2*d5*e3 + b4*c3*d2*e5 - b4*c3*d5*e2 - b4*c5*d2*e3 + b4*c5*d3*e2 + b5*c2*d3*e4 - b5*c3*d2*e4 + b5*c4*d2*e3 - b5*c4*d3*e2);
     r_ddq5 = -(b1*c2*d3*e4 - b1*c3*d2*e4 + b1*c4*d2*e3 - b1*c4*d3*e2 - b2*c1*d3*e4 + b2*c3*d1*e4 - b2*c4*d1*e3 + b2*c4*d3*e1 + b3*c1*d2*e4 - b3*c2*d1*e4 + b3*c4*d1*e2 - b3*c4*d2*e1 - b4*c1*d2*e3 + b4*c1*d3*e2 + b4*c2*d1*e3 - b4*c2*d3*e1 - b4*c3*d1*e2 + b4*c3*d2*e1 + b2*d3*e4*tau4 - b3*d2*e4*tau4 + b4*d2*e3*tau4 - b4*d3*e2*tau4)/(b2*c3*d5*e4 + b2*c4*d3*e5 - b2*c4*d5*e3 - b2*c5*d3*e4 - b3*c2*d5*e4 - b3*c4*d2*e5 + b3*c4*d5*e2 + b3*c5*d2*e4 - b4*c2*d3*e5 + b4*c2*d5*e3 + b4*c3*d2*e5 - b4*c3*d5*e2 - b4*c5*d2*e3 + b4*c5*d3*e2 + b5*c2*d3*e4 - b5*c3*d2*e4 + b5*c4*d2*e3 - b5*c4*d3*e2);
 
-    return dq1, h_dq2, r_dd2, r_dd3, r_dq4, r_dq5, ddq1, h_ddq2, r_ddd2, r_ddd3, r_ddq4, r_ddq5
+    return dq1, ddq1, h_dq2, h_ddq2, r_dd2, r_ddd2, r_dd3, r_ddd3, r_dq4, r_ddq4, r_dq5, r_ddq5
