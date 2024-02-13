@@ -5,6 +5,7 @@ from torch.nn.parameter import Parameter
 
 import operator
 
+
 def jacobian(f, x, eps):
     if x.ndimension() == 2:
         assert x.size(0) == 1
@@ -13,8 +14,8 @@ def jacobian(f, x, eps):
     e = Variable(torch.eye(len(x)).type_as(get_data_maybe(x)))
     J = []
     for i in range(len(x)):
-        J.append((f(x + eps*e[i]) - f(x - eps*e[i]))/(2.*eps))
-    J = torch.stack(J).transpose(0,1)
+        J.append((f(x + eps * e[i]) - f(x - eps * e[i])) / (2.0 * eps))
+    J = torch.stack(J).transpose(0, 1)
     return J
 
 
@@ -75,13 +76,15 @@ def get_data_maybe(x):
 
 
 _seen_tables = []
+
+
 def table_log(tag, d):
     # TODO: There's probably a better way to handle formatting here,
     # or a better way altogether to replace this quick hack.
     global _seen_tables
 
     def print_row(r):
-        print('| ' + ' | '.join(r) + ' |')
+        print("| " + " | ".join(r) + " |")
 
     if tag not in _seen_tables:
         print_row(map(operator.itemgetter(0), d))
@@ -89,7 +92,7 @@ def table_log(tag, d):
 
     s = []
     for di in d:
-        assert len(di) in [2,3]
+        assert len(di) in [2, 3]
         if len(di) == 3:
             e, fmt = di[1:]
             s.append(fmt.format(e))
@@ -100,7 +103,7 @@ def table_log(tag, d):
 
 
 def get_traj(T, u, x_init, dynamics):
-    from .mpc import QuadCost, LinDx # TODO: This is messy.
+    from .mpc import QuadCost, LinDx  # TODO: This is messy.
 
     if isinstance(dynamics, LinDx):
         F = get_data_maybe(dynamics.F)
@@ -112,7 +115,7 @@ def get_traj(T, u, x_init, dynamics):
     for t in range(T):
         xt = x[t]
         ut = get_data_maybe(u[t])
-        if t < T-1:
+        if t < T - 1:
             # new_x = f(Variable(xt), Variable(ut)).data
             if isinstance(dynamics, LinDx):
                 xut = torch.cat((xt, ut), 1)
@@ -120,14 +123,16 @@ def get_traj(T, u, x_init, dynamics):
                 if f is not None:
                     new_x += f[t]
             else:
-                new_x = dynamics(Variable(xt), Variable(ut)).data
+                print("Using dynamics for new_x.")
+                new_x = dynamics(Variable(xt), Variable(ut), t).data
+                print("Using dynamics for new_x Done.")
             x.append(new_x)
     x = torch.stack(x, dim=0)
     return x
 
 
 def get_cost(T, u, cost, dynamics=None, x_init=None, x=None):
-    from .mpc import QuadCost, LinDx # TODO: This is messy.
+    from .mpc import QuadCost, LinDx  # TODO: This is messy.
 
     assert x_init is not None or x is not None
 
@@ -144,7 +149,7 @@ def get_cost(T, u, cost, dynamics=None, x_init=None, x=None):
         ut = u[t]
         xut = torch.cat((xt, ut), 1)
         if isinstance(cost, QuadCost):
-            obj = 0.5*bquad(xut, C[t]) + bdot(xut, c[t])
+            obj = 0.5 * bquad(xut, C[t]) + bdot(xut, c[t])
         else:
             obj = cost(xut)
         objs.append(obj)

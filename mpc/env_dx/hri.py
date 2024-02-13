@@ -66,11 +66,13 @@ class HRIDx(nn.Module):
         self.max_linesearch_iter = 5
 
         self.params = model_params
-        
-    def update_input(self, human_u):
-        
+        self.human_u = None
+        self.count = None
 
-    def forward(self, x, u):
+    def update_input(self, human_u):
+        self.human_u = human_u
+
+    def forward(self, x, u, t=0):
         squeeze = x.ndimension() == 1
 
         if squeeze:
@@ -102,9 +104,12 @@ class HRIDx(nn.Module):
         r_dq5 = x[0, 11]
 
         tau_1 = 0
-        tau_2 = 0
+        if self.human_u is not None:
+            tau_2 = self.human_u[t]
+        else:
+            tau_2 = 0
         tau_3 = 0
-        tau_4 = u[0]  # robot torque
+        tau_4 = u  # robot torque
 
         (
             dq1,
