@@ -123,9 +123,7 @@ def get_traj(T, u, x_init, dynamics):
                 if f is not None:
                     new_x += f[t]
             else:
-                print("Using dynamics for new_x.")
                 new_x = dynamics(Variable(xt), Variable(ut), t).data
-                print("Using dynamics for new_x Done.")
             x.append(new_x)
     x = torch.stack(x, dim=0)
     return x

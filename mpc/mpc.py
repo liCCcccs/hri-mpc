@@ -208,12 +208,8 @@ class MPC(Module):
 
         # if c.ndimension() == 2:
         #     c = c.unsqueeze(1).expand(self.T, n_batch, -1)
-        print(f"Success Flag 1")
         if isinstance(cost, QuadCost):
             C, c = cost
-            # print(f"Before: {C}, {c}")
-            print(f"Before C shape: {C.ndimension()}")
-            print(f"Before c shape: {c.ndimension()}")
 
             if C.ndimension() == 2:
                 # Add the time and batch dimensions.
@@ -239,11 +235,6 @@ class MPC(Module):
                 print("MPC Error: Unexpected QuadCost shape.")
                 sys.exit(-1)
             cost = QuadCost(C, c)
-            # print(f"After: {C}, {c}")
-            print(f"After C shape: {C.size()}")
-            print(f"After c shape: {c.size()}")
-
-        print(f"Success Flag 2")
 
         assert x_init.ndimension() == 2 and x_init.size(0) == n_batch
 
@@ -262,8 +253,6 @@ class MPC(Module):
                 )
             )
 
-        print(f"Success Flag 3")
-
         best = None
 
         n_not_improved = 0
@@ -271,18 +260,12 @@ class MPC(Module):
             u = Variable(util.detach_maybe(u), requires_grad=True)
             # Linearize the dynamics around the current trajectory.
 
-            print(f"Success Flag 3.01")
-
             x = util.get_traj(self.T, u, x_init=x_init, dynamics=dx)
-
-            print(f"Success Flag 3.02")
 
             if isinstance(dx, LinDx):
                 F, f = dx.F, dx.f
             else:
                 F, f = self.linearize_dynamics(x, util.detach_maybe(u), dx, diff=False)
-
-            print(f"Success Flag 3.03")
 
             if isinstance(cost, QuadCost):
                 C, c = cost.C, cost.c
@@ -295,8 +278,6 @@ class MPC(Module):
                 self.solve_lqr_subproblem(x_init, C, c, F, f, cost, dx, x, u)
             )
             n_not_improved += 1
-
-            print(f"Success Flag 3.1")
 
             assert x.ndimension() == 3
             assert u.ndimension() == 3
@@ -317,8 +298,6 @@ class MPC(Module):
                         best["costs"][j] = costs[j]
                         best["full_du_norm"][j] = full_du_norm[j]
 
-            print(f"Success Flag 3.2")
-
             if self.verbose > 0:
                 util.table_log(
                     "lqr",
@@ -334,12 +313,8 @@ class MPC(Module):
                     ),
                 )
 
-            print(f"Success Flag 3.3")
-
             if max(full_du_norm) < self.eps or n_not_improved > self.not_improved_lim:
                 break
-
-        print(f"Success Flag 4")
 
         x = torch.cat(best["x"], dim=1)
         u = torch.cat(best["u"], dim=1)
@@ -359,8 +334,6 @@ class MPC(Module):
             x_init, C, c, F, f, cost, dx, x, u, no_op_forward=True
         )
 
-        print(f"Success Flag 5")
-
         if self.detach_unconverged:
             if max(best["full_du_norm"]) > self.eps:
                 if self.exit_unconverged:
@@ -379,8 +352,6 @@ class MPC(Module):
                 u = u * Iu + u.clone().detach() * (1.0 - Iu)
 
         costs = best["costs"]
-
-        print(f"Success Flag 6")
 
         return (x, u, costs)
 
@@ -592,15 +563,12 @@ More details: https://github.com/locuslab/mpc.pytorch/issues/12
             x_init = x[0]
             x = [x_init]
             F, f = [], []
-            print("Success Flag Linearize Dynamics 1")
             for t in range(self.T):
                 if t < self.T - 1:
                     xt = Variable(x[t], requires_grad=True)
                     ut = Variable(u[t], requires_grad=True)
                     xut = torch.cat((xt, ut), 1)
                     new_x = dynamics(xt, ut, t)
-
-                    print("Success Flag Linearize Dynamics 2")
 
                     # Linear dynamics approximation.
                     if self.grad_method in [
