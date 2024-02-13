@@ -208,11 +208,15 @@ class HRIDx(nn.Module):
 
 
 class HRIDx_Sim(nn.Module):
-    def __init__(self, model_params=None, u=None):
+    def __init__(self, model_params=None, u=None, current_t=0.0):
         super().__init__()
 
         self.params = model_params
         self.u = u
+        self.current_t = current_t
+
+    def update_input(self, human_u):
+        self.human_u = human_u
 
     def forward(self, t, x):
         squeeze = x.ndimension() == 1
@@ -239,9 +243,14 @@ class HRIDx_Sim(nn.Module):
         r_dq5 = x[0, 11]
 
         tau_1 = 0
-        tau_2 = 0
+        if self.human_u is not None:
+            # TODO: implement human input from input
+            # Warning: change this every time you change the input
+            tau_2 = 5 * torch.sin(2 * 2 * torch.pi * (self.current_t + t) / 100)
+        else:
+            tau_2 = 0
         tau_3 = 0
-        tau_4 = u[0]  # robot torque
+        tau_4 = u  # robot torque
 
         (
             dq1,
