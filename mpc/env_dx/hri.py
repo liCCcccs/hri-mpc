@@ -23,7 +23,7 @@ class HRIDx(nn.Module):
     def __init__(self, model_params=None, dt=0.01, n_state=12, n_ctrl=1):
         super().__init__()
 
-        self.max_torque = 24
+        self.max_torque = 24.0  # has to be float
         self.dt = dt
         self.n_state = n_state
         self.n_ctrl = n_ctrl
@@ -35,6 +35,8 @@ class HRIDx(nn.Module):
         self.mpc_eps = 1e-3
         self.linesearch_decay = 0.2
         self.max_linesearch_iter = 5
+        self.lower = -self.max_torque
+        self.upper = self.max_torque
 
         self.params = model_params
         self.human_u = None
@@ -178,12 +180,14 @@ class HRIDx(nn.Module):
 
 
 class HRIDx_Sim(nn.Module):
-    def __init__(self, model_params=None, u=None, current_t=0.0):
+    def __init__(self, model_params=None, u=None, current_t=0.0, dt=None):
         super().__init__()
 
         self.params = model_params
         self.u = u
         self.current_t = current_t
+        self.dx = dt
+        self.freq = 1 / dt
 
     def update_input(self, human_u):
         self.human_u = human_u
@@ -200,60 +204,51 @@ class HRIDx_Sim(nn.Module):
         u = self.u
 
         q1 = x[0, 0]
-        h_q2 = x[0, 2]
-        r_d2 = x[0, 4]
-        r_d3 = x[0, 6]
-        r_q4 = x[0, 8]
-        r_q5 = x[0, 10]
         dq1 = x[0, 1]
+        h_q2 = x[0, 2]
         h_dq2 = x[0, 3]
+        r_d2 = x[0, 4]
         r_dd2 = x[0, 5]
+        r_d3 = x[0, 6]
         r_dd3 = x[0, 7]
+        r_q4 = x[0, 8]
         r_dq4 = x[0, 9]
+        r_q5 = x[0, 10]
         r_dq5 = x[0, 11]
 
         tau_1 = 0
+        tau_3 = 0
+        tau_4 = u  # robot torque
         if self.human_u is not None:
             # TODO: implement human input from input
             # Warning: change this every time you change the input
-            tau_2 = 5 * torch.sin(2 * 2 * torch.pi * (self.current_t + t) / 100)
+            # tau_2 = 5 * torch.sin(2 * 2 * torch.pi * (self.current_t + t) / 100)
+            tau_2 = self.sample_from_data(t, self.human_u, self.freq)
         else:
             tau_2 = 0
-        tau_3 = 0
-        tau_4 = u  # robot torque
 
+        # fmt: off
         (
-            dq1,
-            ddq1,
-            h_dq2,
-            h_ddq2,
-            r_dd2,
-            r_ddd2,
-            r_dd3,
-            r_ddd3,
-            r_dq4,
-            r_ddq4,
-            r_dq5,
-            r_ddq5,
+            dq1, ddq1,
+            h_dq2, h_ddq2,
+            r_dd2, r_ddd2,
+            r_dd3, r_ddd3,
+            r_dq4, r_ddq4,
+            r_dq5, r_ddq5,
         ) = hri_ode_c(
             self.params,
-            q1,
-            dq1,
-            h_q2,
-            h_dq2,
-            r_d2,
-            r_dd2,
-            r_d3,
-            r_dd3,
-            r_q4,
-            r_dq4,
-            r_q5,
-            r_dq5,
+            q1, dq1,
+            h_q2, h_dq2,
+            r_d2, r_dd2,
+            r_d3, r_dd3,
+            r_q4, r_dq4,
+            r_q5, r_dq5,
             tau_1,
             tau_2,
             tau_3,
             tau_4,
         )
+        # fmt: on
 
         output = torch.zeros_like(x)  # size (*, 2), h_ddq2, r_ddq2
         output[..., 0] = dq1
@@ -272,6 +267,40 @@ class HRIDx_Sim(nn.Module):
         if squeeze:
             output = output.squeeze(0)
         return output
+
+    def sample_from_data(self, ts, data, freq):
+        # Calculate the time of each sample
+        time_stamps = np.arange(0, len(data) / freq, 1 / freq)
+
+        # Find the two nearest sampling points
+        idx = self.binary_search_left(time_stamps, ts)
+
+        # Handle cases where ts is outside the range of time_stamps
+        if idx == 0:
+            return data[0]
+        if idx >= len(data):
+            return data[-1]
+
+        # Perform linear interpolation
+        t1, t2 = time_stamps[idx - 1], time_stamps[idx]
+        d1, d2 = data[idx - 1], data[idx]
+        value = d1 + (d2 - d1) * (ts - t1) / (t2 - t1)
+
+        return value
+
+    def binary_search_left(self, time_stamps, ts):
+        left, right = 0, len(time_stamps) - 1
+        idx = len(time_stamps)  # Default index if ts is greater than all elements
+
+        while left <= right:
+            mid = (left + right) // 2
+            if time_stamps[mid] < ts:
+                left = mid + 1
+            else:
+                idx = mid
+                right = mid - 1
+
+        return idx
 
 
 if __name__ == "__main__":
@@ -312,70 +341,6 @@ if __name__ == "__main__":
     }
 
     model = HRIDx_Sim(params, torch.tensor([3.0]))
-
-    # q1 = torch.tensor(torch.pi / 2)
-    # dq1 = torch.tensor(0.0)
-    # h_q2 = torch.tensor(-torch.pi / 2)
-    # h_dq2 = torch.tensor(0.0)
-    # r_d2 = torch.tensor(0.0)
-    # r_dd2 = torch.tensor(0.0)
-    # r_d3 = torch.tensor(0.0)
-    # r_dd3 = torch.tensor(0.0)
-    # r_q4 = torch.tensor(0.0)
-    # r_dq4 = torch.tensor(0.0)
-    # r_q5 = torch.tensor(-torch.pi / 2)
-    # r_dq5 = torch.tensor(0.0)
-    # tau1 = torch.tensor(0.0)
-    # tau2 = torch.tensor(0.0)
-    # tau3 = torch.tensor(0.0)
-    # tau4 = torch.tensor(3.0)
-
-    # (
-    #     dq1,
-    #     ddq1,
-    #     h_dq2,
-    #     h_ddq2,
-    #     r_dd2,
-    #     r_ddd2,
-    #     r_dd3,
-    #     r_ddd3,
-    #     r_dq4,
-    #     r_ddq4,
-    #     r_dq5,
-    #     r_ddq5,
-    # ) = hri_ode_c(
-    #     params,
-    #     q1,
-    #     dq1,
-    #     h_q2,
-    #     h_dq2,
-    #     r_d2,
-    #     r_dd2,
-    #     r_d3,
-    #     r_dd3,
-    #     r_q4,
-    #     r_dq4,
-    #     r_q5,
-    #     r_dq5,
-    #     tau1,
-    #     tau2,
-    #     tau3,
-    #     tau4,
-    # )
-
-    # # print all output variables
-    # print("dq1:", dq1)
-    # print("h_dq2:", h_dq2)
-    # print("r_dd2:", r_dd2)
-    # print("r_dd3:", r_dd3)
-    # print("r_dq4:", r_dq4)
-    # print("r_dq5:", r_dq5)
-    # print("ddq1:", ddq1)
-    # print("h_ddq2:", h_ddq2)
-    # print("r_ddd2:", r_ddd2)
-    # print("r_ddd3:", r_ddd3)
-    # print("r_ddq4:", r_ddq4)
-    # print("r_ddq5:", r_ddq5)
 
     ts = torch.linspace(0.0, 1.0, 100)
     x0 = torch.tensor(
