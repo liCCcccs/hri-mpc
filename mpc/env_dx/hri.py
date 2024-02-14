@@ -4,62 +4,33 @@ from torch.autograd import Function, Variable
 import torch.nn.functional as F
 from torch import nn
 from torch.nn.parameter import Parameter
+from torch import sin, cos, pi
 
 from mpc.c_funcs.hri_ode_c import func as hri_ode_c  # Import the Cython function
 
 import numpy as np
-
 from mpc import util
-
 import os
-
 import matplotlib
 
-# matplotlib.use("Agg")
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 plt.style.use("bmh")
 
-from torch import sin, cos, pi
-
 
 class HRIDx(nn.Module):
-    def __init__(self, model_params=None, mpc_param=None, simple=True):
+    def __init__(self, model_params=None, dt=0.01, n_state=12, n_ctrl=1):
         super().__init__()
-        self.simple = simple
 
         self.max_torque = 24
-        self.dt = 0.01
-        self.n_state = 12
-        self.n_ctrl = 1
+        self.dt = dt
+        self.n_state = n_state
+        self.n_ctrl = n_ctrl
 
-        # TODO: get params from inputs
-
-        # self.goal_state = torch.Tensor([1.0, 0.0, 0.0])
-        # self.goal_weights = torch.Tensor([1.0, 1.0, 0.1])
-
-        des_angle = -0.25 * np.pi
-        self.goal_weights = torch.Tensor(
-            (0.0, 0.0, 10000.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        )
-        self.goal_state = torch.Tensor(
-            (
-                np.pi / 2,
-                0.0,
-                des_angle,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                des_angle,
-                0.0,
-            )
-        )
-        self.ctrl_penalty = 0.001
-        self.lower, self.upper = -24.0, 24.0
+        self.goal_weights = None
+        self.goal_state = None
+        self.ctrl_penalty = None
 
         self.mpc_eps = 1e-3
         self.linesearch_decay = 0.2
@@ -67,10 +38,14 @@ class HRIDx(nn.Module):
 
         self.params = model_params
         self.human_u = None
-        self.count = None
 
     def update_input(self, human_u):
         self.human_u = human_u
+
+    def update_goal(self, goal_state, goal_weights, ctrl_penalty):
+        self.goal_state = goal_state
+        self.goal_weights = goal_weights
+        self.ctrl_penalty = ctrl_penalty
 
     def forward(self, x, u, t=0):
         squeeze = x.ndimension() == 1
@@ -91,58 +66,49 @@ class HRIDx(nn.Module):
         u = torch.clamp(u, -self.max_torque, self.max_torque)[:, 0]
 
         q1 = x[0, 0]
-        h_q2 = x[0, 2]
-        r_d2 = x[0, 4]
-        r_d3 = x[0, 6]
-        r_q4 = x[0, 8]
-        r_q5 = x[0, 10]
         dq1 = x[0, 1]
+        h_q2 = x[0, 2]
         h_dq2 = x[0, 3]
+        r_d2 = x[0, 4]
         r_dd2 = x[0, 5]
+        r_d3 = x[0, 6]
         r_dd3 = x[0, 7]
+        r_q4 = x[0, 8]
         r_dq4 = x[0, 9]
+        r_q5 = x[0, 10]
         r_dq5 = x[0, 11]
 
         tau_1 = 0
-        if self.human_u is not None:
-            tau_2 = self.human_u[t]
-        else:
-            tau_2 = 0
         tau_3 = 0
         tau_4 = u  # robot torque
 
+        if self.human_u is not None:
+            tau_2 = self.human_u[t]  # human torque
+        else:
+            tau_2 = 0
+
+        # fmt: off
         (
-            dq1,
-            ddq1,
-            h_dq2,
-            h_ddq2,
-            r_dd2,
-            r_ddd2,
-            r_dd3,
-            r_ddd3,
-            r_dq4,
-            r_ddq4,
-            r_dq5,
-            r_ddq5,
+            dq1, ddq1,
+            h_dq2, h_ddq2,
+            r_dd2, r_ddd2,
+            r_dd3, r_ddd3,
+            r_dq4, r_ddq4,
+            r_dq5, r_ddq5,
         ) = hri_ode_c(
             self.params,
-            q1,
-            dq1,
-            h_q2,
-            h_dq2,
-            r_d2,
-            r_dd2,
-            r_d3,
-            r_dd3,
-            r_q4,
-            r_dq4,
-            r_q5,
-            r_dq5,
+            q1, dq1,
+            h_q2, h_dq2,
+            r_d2, r_dd2,
+            r_d3, r_dd3,
+            r_q4, r_dq4,
+            r_q5, r_dq5,
             tau_1,
             tau_2,
             tau_3,
             tau_4,
         )
+        # fmt: on
 
         new_q1 = q1 + self.dt * dq1
         new_dq1 = dq1 + self.dt * ddq1
@@ -200,6 +166,10 @@ class HRIDx(nn.Module):
         return fig, ax
 
     def get_true_obj(self):
+        assert self.goal_state is not None
+        assert self.goal_weights is not None
+        assert self.ctrl_penalty is not None
+
         q = torch.cat((self.goal_weights, self.ctrl_penalty * torch.ones(self.n_ctrl)))
         assert not hasattr(self, "mpc_lin")
         px = -torch.sqrt(self.goal_weights) * self.goal_state  # + self.mpc_lin
