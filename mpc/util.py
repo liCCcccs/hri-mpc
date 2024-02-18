@@ -185,3 +185,49 @@ def band_limited_noise(min_freq, max_freq, samples=1024, samplerate=1, noise_lev
     idx = np.where(np.logical_and(freqs >= min_freq, freqs <= max_freq))[0]
     f[idx] = noise_level
     return fftnoise(f)
+
+
+def sample_from_data(ts, data, freq):
+    # Calculate the time of each sample
+    time_stamps = np.arange(0, len(data) / freq, 1 / freq)
+
+    # Find the two nearest sampling points
+    idx = binary_search_left(time_stamps, ts)
+
+    # Handle cases where ts is outside the range of time_stamps
+    if idx == 0:
+        return data[0]
+    if idx >= len(data):
+        return data[-1]
+
+    # Perform linear interpolation
+    t1, t2 = time_stamps[idx - 1], time_stamps[idx]
+    d1, d2 = data[idx - 1], data[idx]
+    value = d1 + (d2 - d1) * (ts - t1) / (t2 - t1)
+
+    return value
+
+
+def binary_search_left(time_stamps, ts):
+    left, right = 0, len(time_stamps) - 1
+    idx = len(time_stamps)  # Default index if ts is greater than all elements
+
+    while left <= right:
+        mid = (left + right) // 2
+        if time_stamps[mid] < ts:
+            left = mid + 1
+        else:
+            idx = mid
+            right = mid - 1
+
+    return idx
+
+
+def read_double_column_csv(file_path):
+    with open(file_path, "r") as file:
+        data = file.readlines()
+    # extract the second column
+    data = [i.split(",")[1] for i in data]
+    # Convert to float
+    data = [float(i) for i in data]
+    return data
