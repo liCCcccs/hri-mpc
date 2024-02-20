@@ -7,6 +7,10 @@ from torch.nn.parameter import Parameter
 from torch import sin, cos, pi
 
 from mpc.c_funcs.hri_ode_c import func as hri_ode_c  # Import the Cython function
+from mpc.c_funcs.hri_ode_c_shoenonlinear import (
+    func as hri_ode_c_shoenonlinear,
+)  # Import the Cython function
+
 
 import numpy as np
 from mpc import util
@@ -97,7 +101,7 @@ class HRIDx(nn.Module):
             r_dd3, r_ddd3,
             r_dq4, r_ddq4,
             r_dq5, r_ddq5,
-        ) = hri_ode_c(
+        ) = hri_ode_c_shoenonlinear(
             self.params,
             q1, dq1,
             h_q2, h_dq2,
@@ -235,7 +239,7 @@ class HRIDx_Sim(nn.Module):
             r_dd3, r_ddd3,
             r_dq4, r_ddq4,
             r_dq5, r_ddq5,
-        ) = hri_ode_c(
+        ) = hri_ode_c_shoenonlinear(
             self.params,
             q1, dq1,
             h_q2, h_dq2,
